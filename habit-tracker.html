@@ -1,0 +1,1498 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="習慣">
+<meta name="theme-color" content="#0f172a">
+<title>🔬 習慣トラッカー</title>
+<link rel="manifest" id="manifest-link">
+<link rel="apple-touch-icon" id="apple-touch-icon">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Hiragino Sans,sans-serif;background:#0f172a;color:#f1f5f9;overflow-x:hidden}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:#1e293b}
+::-webkit-scrollbar-thumb{background:#475569;border-radius:3px}
+input,textarea,select{background:#334155;color:#f1f5f9;border:1px solid #475569;border-radius:8px;padding:8px 12px;font-size:14px;outline:none;transition:border-color .2s;font-family:inherit}
+input:focus,textarea:focus,select:focus{border-color:#6366f1;box-shadow:0 0 0 2px rgba(99,102,241,.2)}
+button{cursor:pointer;border:none;border-radius:8px;font-size:14px;font-weight:500;transition:all .2s;font-family:inherit}
+/* Layout */
+#app{display:flex;flex-direction:column;height:100dvh;max-width:768px;margin:0 auto;position:relative}
+/* Sync bar */
+#sync-bar{position:fixed;top:0;left:50%;transform:translateX(-50%);background:#1e3a5f;border:1px solid #3b82f6;border-radius:0 0 10px 10px;padding:5px 16px;font-size:12px;z-index:300;color:#93c5fd;box-shadow:0 4px 12px rgba(0,0,0,.3);transition:opacity .3s;white-space:nowrap}
+/* Header */
+#header{background:#1e293b;border-bottom:1px solid #334155;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;gap:8px}
+#header h1{font-size:16px;font-weight:700;color:#a5b4fc;white-space:nowrap}
+#header-actions{display:flex;gap:6px;align-items:center}
+.sync-badge{font-size:11px;padding:3px 8px;border-radius:12px;font-weight:600;cursor:default}
+.sync-ok{background:#064e3b;color:#6ee7b7}
+.sync-error{background:#7f1d1d;color:#fca5a5}
+.sync-off{background:#1e293b;color:#64748b;border:1px solid #334155}
+/* Nav tabs */
+#nav{background:#1e293b;border-bottom:1px solid #334155;display:flex;overflow-x:auto;flex-shrink:0;scrollbar-width:none}
+#nav::-webkit-scrollbar{display:none}
+.tab-btn{flex:1;min-width:max-content;padding:9px 10px;background:none;color:#94a3b8;font-size:11px;font-weight:500;border-radius:0;border-bottom:2px solid transparent;white-space:nowrap;transition:all .2s}
+.tab-btn.active{color:#a5b4fc;border-bottom-color:#6366f1;background:rgba(99,102,241,.08)}
+.tab-btn:hover:not(.active){color:#cbd5e1;background:rgba(255,255,255,.03)}
+/* Content */
+#content{flex:1;overflow-y:auto;padding:14px}
+/* Cards */
+.card{background:#1e293b;border-radius:12px;padding:14px;margin-bottom:10px;border:1px solid #334155}
+.card-title{font-size:13px;font-weight:600;color:#94a3b8;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+/* Progress */
+.progress-bar{background:#334155;border-radius:99px;height:7px;overflow:hidden}
+.progress-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,#6366f1,#8b5cf6);transition:width .5s ease}
+/* Stat grid */
+.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
+.stat-card{background:#0f172a;border-radius:10px;padding:10px 8px;text-align:center;border:1px solid #1e293b}
+.stat-value{font-size:20px;font-weight:700;color:#a5b4fc;line-height:1.2}
+.stat-label{font-size:10px;color:#64748b;margin-top:2px}
+/* Habit items */
+.habit-item{display:flex;align-items:center;gap:10px;padding:9px 6px;border-radius:8px;transition:background .15s;cursor:pointer;user-select:none}
+.habit-item:hover{background:#334155}
+.habit-item:active{background:#3f4f6a}
+.habit-check{width:22px;height:22px;border-radius:6px;border:2px solid #475569;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .2s;font-size:13px;font-weight:700;color:transparent}
+.habit-check.checked{background:#6366f1;border-color:#6366f1;color:white}
+.habit-label{flex:1;font-size:14px;transition:color .2s}
+.habit-label.done{text-decoration:line-through;color:#64748b}
+.habit-streak{font-size:11px;color:#f59e0b;font-weight:700}
+/* Category */
+.cat-header{font-size:10px;font-weight:700;color:#475569;letter-spacing:.08em;text-transform:uppercase;margin:10px 0 4px 4px}
+/* Calendar month */
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.cal-day-label{font-size:10px;color:#64748b;text-align:center;padding:4px 0;font-weight:600}
+.cal-day{aspect-ratio:1;display:flex;align-items:center;justify-content:center;border-radius:6px;font-size:11px;cursor:default;transition:transform .1s}
+/* Streak dots */
+.s-dot{width:11px;height:11px;border-radius:50%;flex-shrink:0}
+/* Toggle group */
+.tg{display:inline-flex;background:#0f172a;border-radius:8px;padding:3px;gap:2px;border:1px solid #334155}
+.tg-btn{padding:5px 10px;border-radius:6px;font-size:12px;background:transparent;color:#64748b;border:none;cursor:pointer;transition:all .2s;white-space:nowrap}
+.tg-btn.active{background:#6366f1;color:white;font-weight:600}
+/* Buttons */
+.btn-primary{background:#6366f1;color:white;padding:8px 16px}
+.btn-primary:hover{background:#5155d8}
+.btn-primary:active{background:#4548c9;transform:scale(.97)}
+.btn-danger{background:rgba(239,68,68,.15);color:#f87171;padding:5px 9px;font-size:12px;border:1px solid rgba(239,68,68,.2)}
+.btn-danger:hover{background:rgba(239,68,68,.25)}
+.btn-ghost{background:transparent;color:#94a3b8;padding:6px 10px;border:1px solid #334155;font-size:12px}
+.btn-ghost:hover{background:#334155;color:#f1f5f9}
+.btn-icon{background:none;color:#475569;padding:4px 6px;font-size:14px;line-height:1}
+.btn-icon:hover{color:#94a3b8}
+/* Modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:flex-end;justify-content:center;z-index:200;padding:0}
+@media(min-width:480px){.modal-overlay{align-items:center;padding:16px}}
+.modal{background:#1e293b;border-radius:20px 20px 0 0;padding:20px 18px;width:100%;max-height:90vh;overflow-y:auto;border-top:1px solid #334155;box-shadow:0 -10px 40px rgba(0,0,0,.5)}
+@media(min-width:480px){.modal{border-radius:16px;max-width:480px;border:1px solid #334155}}
+.modal h2{font-size:17px;font-weight:700;margin-bottom:14px;color:#a5b4fc}
+.modal-handle{width:36px;height:4px;background:#475569;border-radius:2px;margin:0 auto 16px;display:block}
+/* Form */
+.form-row{display:flex;gap:8px;margin-bottom:8px}
+.form-group{flex:1}
+.form-label{font-size:12px;color:#94a3b8;display:block;margin-bottom:4px}
+/* Badge */
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
+.badge-green{background:#064e3b;color:#6ee7b7}
+.badge-yellow{background:#78350f;color:#fde68a}
+.badge-red{background:#7f1d1d;color:#fca5a5}
+.badge-blue{background:#1e3a5f;color:#93c5fd}
+/* Charts */
+.chart-wrap{position:relative;height:180px}
+/* Timer */
+.timer-circle{position:relative;width:190px;height:190px;margin:0 auto}
+.timer-svg{transform:rotate(-90deg)}
+.timer-text{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none}
+.timer-time{font-size:34px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-1px}
+.timer-sublabel{font-size:12px;color:#94a3b8;margin-top:3px}
+/* Goal items */
+.goal-item{padding:10px 12px;border-radius:8px;background:#0f172a;margin-bottom:6px;border-left:3px solid}
+.p-high{border-left-color:#ef4444}
+.p-med{border-left-color:#f59e0b}
+.p-low{border-left-color:#6366f1}
+/* GCal */
+.gcal-wrap{border-radius:10px;overflow:hidden;border:1px solid #334155;background:#fff}
+.gcal-iframe{width:100%;border:none;display:block}
+/* Empty state */
+.empty{text-align:center;padding:28px 16px;color:#475569}
+.empty-icon{font-size:36px;margin-bottom:8px}
+/* Safe area */
+@supports(padding-bottom:env(safe-area-inset-bottom)){
+  #nav{padding-bottom:env(safe-area-inset-bottom)}
+  #content{padding-bottom:calc(14px + env(safe-area-inset-bottom))}
+}
+hr{border:none;border-top:1px solid #334155;margin:14px 0}
+/* Project item */
+.proj-item{background:#0f172a;border-radius:8px;padding:10px;margin-bottom:6px}
+code{background:#0f172a;padding:2px 6px;border-radius:4px;font-size:11px;font-family:monospace;color:#94a3b8}
+/* Install banner */
+#install-banner{background:linear-gradient(135deg,#1e3a5f,#312e81);border:1px solid #6366f1;border-radius:10px;padding:12px;margin-bottom:10px;display:none}
+</style>
+</head>
+<body>
+<div id="sync-bar" style="display:none">🔄 他のデバイスからデータを受信しました</div>
+
+<div id="app">
+  <!-- ===== HEADER ===== -->
+  <div id="header">
+    <h1>🔬 ICU習慣トラッカー</h1>
+    <div id="header-actions">
+      <span id="sync-badge" class="sync-badge sync-off" title="同期状態">オフライン</span>
+      <button class="btn-ghost" onclick="openModal('settings-modal')" style="padding:5px 9px;font-size:16px" title="設定">⚙️</button>
+    </div>
+  </div>
+
+  <!-- ===== NAV TABS ===== -->
+  <div id="nav">
+    <button class="tab-btn active" data-tab="today">📋 今日</button>
+    <button class="tab-btn" data-tab="calendar">📅 カレンダー</button>
+    <button class="tab-btn" data-tab="stats">📊 統計</button>
+    <button class="tab-btn" data-tab="streak">🔥 ストリーク</button>
+    <button class="tab-btn" data-tab="income">💰 副業</button>
+    <button class="tab-btn" data-tab="goals">🎯 目標</button>
+    <button class="tab-btn" data-tab="timer">⏱️ タイマー</button>
+  </div>
+
+  <!-- ===== CONTENT ===== -->
+  <div id="content">
+
+    <!-- ===== 今日タブ ===== -->
+    <div id="tab-today" class="tab-pane">
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-value" id="t-done">0</div>
+          <div class="stat-label">完了</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="t-rate">0%</div>
+          <div class="stat-label">達成率</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="t-streak">0🔥</div>
+          <div class="stat-label">最長streak</div>
+        </div>
+      </div>
+      <div class="card" style="padding:10px 14px">
+        <div class="progress-bar"><div class="progress-fill" id="t-bar" style="width:0"></div></div>
+      </div>
+      <div id="habits-container"></div>
+      <button class="btn-primary" style="width:100%;margin-bottom:12px" onclick="openModal('add-habit-modal')">＋ 習慣を追加</button>
+
+      <!-- Google Calendar -->
+      <div class="card" style="padding:12px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div class="card-title" style="margin:0">📅 Googleカレンダー</div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <div class="tg" id="gcal-toggle">
+              <button class="tg-btn active" data-view="month" onclick="switchCalView('month',this)">月</button>
+              <button class="tg-btn" data-view="week" onclick="switchCalView('week',this)">週(24h)</button>
+            </div>
+            <button class="btn-icon" onclick="openModal('calendar-modal')" title="カレンダー設定">🔧</button>
+          </div>
+        </div>
+        <div id="gcal-wrap"></div>
+      </div>
+    </div>
+
+    <!-- ===== カレンダータブ ===== -->
+    <div id="tab-calendar" class="tab-pane" style="display:none">
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <button class="btn-ghost" onclick="calMove(-1)">◀</button>
+          <div id="cal-label" style="font-weight:700;font-size:15px"></div>
+          <button class="btn-ghost" onclick="calMove(1)">▶</button>
+        </div>
+        <div class="cal-grid" style="margin-bottom:4px">
+          <div class="cal-day-label">日</div><div class="cal-day-label">月</div>
+          <div class="cal-day-label">火</div><div class="cal-day-label">水</div>
+          <div class="cal-day-label">木</div><div class="cal-day-label">金</div>
+          <div class="cal-day-label">土</div>
+        </div>
+        <div class="cal-grid" id="cal-grid"></div>
+        <div style="display:flex;gap:12px;margin-top:12px;flex-wrap:wrap;font-size:11px;color:#64748b">
+          <span><span style="display:inline-block;width:10px;height:10px;background:#134e4a;border-radius:2px;margin-right:3px"></span>80%以上</span>
+          <span><span style="display:inline-block;width:10px;height:10px;background:#1e3a5f;border-radius:2px;margin-right:3px"></span>50%以上</span>
+          <span><span style="display:inline-block;width:10px;height:10px;background:#3b1f2b;border-radius:2px;margin-right:3px"></span>50%未満</span>
+          <span><span style="display:inline-block;width:10px;height:10px;background:#1c1017;border-radius:2px;margin-right:3px"></span>0%</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">📊 月間サマリー</div>
+        <div class="stat-grid" id="cal-summary"></div>
+      </div>
+    </div>
+
+    <!-- ===== 統計タブ ===== -->
+    <div id="tab-stats" class="tab-pane" style="display:none">
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div class="card-title" style="margin:0">📈 達成率推移</div>
+          <div class="tg">
+            <button class="tg-btn active" onclick="setStatRange(7,this)">7日</button>
+            <button class="tg-btn" onclick="setStatRange(30,this)">30日</button>
+          </div>
+        </div>
+        <div class="chart-wrap"><canvas id="bar-chart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">🎯 習慣別達成率</div>
+        <div style="max-width:220px;margin:0 auto"><canvas id="donut-chart"></canvas></div>
+        <div id="donut-legend" style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px;justify-content:center"></div>
+      </div>
+    </div>
+
+    <!-- ===== ストリークタブ ===== -->
+    <div id="tab-streak" class="tab-pane" style="display:none">
+      <div id="streak-list"></div>
+    </div>
+
+    <!-- ===== 副業タブ ===== -->
+    <div id="tab-income" class="tab-pane" style="display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <button class="btn-ghost" onclick="incMove(-1)">◀</button>
+        <div id="inc-label" style="font-weight:700;font-size:15px"></div>
+        <button class="btn-ghost" onclick="incMove(1)">▶</button>
+      </div>
+      <div class="card">
+        <div class="card-title">💰 月間実績</div>
+        <div class="stat-grid">
+          <div class="stat-card"><div class="stat-value" id="inc-target">¥0</div><div class="stat-label">目標</div></div>
+          <div class="stat-card"><div class="stat-value" id="inc-actual">¥0</div><div class="stat-label">実績</div></div>
+          <div class="stat-card"><div class="stat-value" id="inc-hours">0h</div><div class="stat-label">稼働時間</div></div>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" id="inc-bar" style="width:0"></div></div>
+        <div style="text-align:right;font-size:11px;color:#64748b;margin-top:4px" id="inc-rate">0%</div>
+      </div>
+      <div class="card">
+        <div class="card-title">✏️ データ入力</div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">目標(円)</label><input type="number" id="inc-t-in" placeholder="100000" style="width:100%"></div>
+          <div class="form-group"><label class="form-label">実績(円)</label><input type="number" id="inc-a-in" placeholder="80000" style="width:100%"></div>
+          <div class="form-group"><label class="form-label">稼働(h)</label><input type="number" id="inc-h-in" placeholder="20" step="0.5" style="width:100%"></div>
+        </div>
+        <div style="margin-bottom:8px"><label class="form-label">メモ</label><textarea id="inc-memo" rows="2" style="width:100%;resize:none"></textarea></div>
+        <button class="btn-primary" style="width:100%" onclick="saveInc()">保存</button>
+      </div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div class="card-title" style="margin:0">📁 案件管理</div>
+          <button class="btn-primary" style="font-size:12px;padding:5px 10px" onclick="openModal('add-proj-modal')">＋ 追加</button>
+        </div>
+        <div id="proj-list"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">📈 収入推移（6ヶ月）</div>
+        <div class="chart-wrap"><canvas id="inc-chart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- ===== 目標タブ ===== -->
+    <div id="tab-goals" class="tab-pane" style="display:none">
+      <div class="tg" style="margin-bottom:12px;width:100%;display:flex">
+        <button class="tg-btn active" style="flex:1" data-gs="today" onclick="setGoalScope('today',this)">今日</button>
+        <button class="tg-btn" style="flex:1" data-gs="month" onclick="setGoalScope('month',this)">今月</button>
+        <button class="tg-btn" style="flex:1" data-gs="quarter" onclick="setGoalScope('quarter',this)">3ヶ月</button>
+        <button class="tg-btn" style="flex:1" data-gs="year" onclick="setGoalScope('year',this)">年間</button>
+      </div>
+      <div id="goals-list"></div>
+      <button class="btn-primary" style="width:100%;margin-top:4px" onclick="openModal('add-goal-modal')">＋ 目標を追加</button>
+    </div>
+
+    <!-- ===== タイマータブ ===== -->
+    <div id="tab-timer" class="tab-pane" style="display:none">
+      <div class="tg" style="margin-bottom:12px;width:100%;display:flex">
+        <button class="tg-btn active" style="flex:1" onclick="setTimerMode('pomo',this)">🍅 ポモドーロ</button>
+        <button class="tg-btn" style="flex:1" onclick="setTimerMode('custom',this)">⏱ カスタム</button>
+      </div>
+      <!-- Pomodoro -->
+      <div id="pomo-section">
+        <div class="card" style="text-align:center;padding:20px 14px">
+          <div id="pomo-phase-label" style="font-size:13px;color:#94a3b8;margin-bottom:14px">🍅 作業セッション</div>
+          <div class="timer-circle">
+            <svg class="timer-svg" width="190" height="190" viewBox="0 0 190 190">
+              <circle cx="95" cy="95" r="84" fill="none" stroke="#334155" stroke-width="9"/>
+              <circle id="pomo-ring" cx="95" cy="95" r="84" fill="none" stroke="#6366f1" stroke-width="9"
+                stroke-dasharray="528" stroke-dashoffset="0" stroke-linecap="round"
+                style="transition:stroke-dashoffset .8s linear,stroke .4s"/>
+            </svg>
+            <div class="timer-text">
+              <div class="timer-time" id="pomo-disp">25:00</div>
+              <div class="timer-sublabel" id="pomo-sub">作業</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;justify-content:center;margin-top:18px;flex-wrap:wrap">
+            <button class="btn-primary" id="pomo-start-btn" onclick="pomoToggle()" style="min-width:90px">▶ 開始</button>
+            <button class="btn-ghost" onclick="pomoReset()">↺ リセット</button>
+            <button class="btn-ghost" onclick="pomoSkip()">⏭ スキップ</button>
+          </div>
+          <div style="display:flex;gap:14px;justify-content:center;margin-top:14px;flex-wrap:wrap">
+            <div><div style="font-size:10px;color:#64748b;margin-bottom:4px">作業(分)</div>
+              <input type="number" id="pw" value="25" min="1" max="99" style="width:64px;text-align:center;padding:6px" onchange="pomoApplySettings()"></div>
+            <div><div style="font-size:10px;color:#64748b;margin-bottom:4px">短休憩(分)</div>
+              <input type="number" id="ps" value="5" min="1" max="60" style="width:64px;text-align:center;padding:6px" onchange="pomoApplySettings()"></div>
+            <div><div style="font-size:10px;color:#64748b;margin-bottom:4px">長休憩(分)</div>
+              <input type="number" id="pl" value="15" min="1" max="60" style="width:64px;text-align:center;padding:6px" onchange="pomoApplySettings()"></div>
+          </div>
+          <div style="margin-top:10px;font-size:12px;color:#64748b">
+            完了セット: <span id="pomo-count" style="color:#a5b4fc;font-weight:700">0</span>
+          </div>
+        </div>
+      </div>
+      <!-- Custom timer -->
+      <div id="custom-section" style="display:none">
+        <div class="card" style="text-align:center;padding:20px 14px">
+          <div class="timer-circle">
+            <svg class="timer-svg" width="190" height="190" viewBox="0 0 190 190">
+              <circle cx="95" cy="95" r="84" fill="none" stroke="#334155" stroke-width="9"/>
+              <circle id="cust-ring" cx="95" cy="95" r="84" fill="none" stroke="#f59e0b" stroke-width="9"
+                stroke-dasharray="528" stroke-dashoffset="0" stroke-linecap="round"
+                style="transition:stroke-dashoffset .8s linear"/>
+            </svg>
+            <div class="timer-text">
+              <div class="timer-time" id="cust-disp">00:00</div>
+              <div class="timer-sublabel" id="cust-sub"></div>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;justify-content:center;margin-top:18px;flex-wrap:wrap">
+            <button class="btn-primary" id="cust-start-btn" onclick="custToggle()" style="min-width:90px">▶ 開始</button>
+            <button class="btn-ghost" onclick="custReset()">↺ リセット</button>
+          </div>
+          <div style="display:flex;gap:10px;justify-content:center;margin-top:14px;flex-wrap:wrap">
+            <div><div style="font-size:10px;color:#64748b;margin-bottom:4px">分</div>
+              <input type="number" id="cm" value="0" min="0" max="99" style="width:60px;text-align:center;padding:6px"></div>
+            <div><div style="font-size:10px;color:#64748b;margin-bottom:4px">秒</div>
+              <input type="number" id="cs" value="0" min="0" max="59" style="width:60px;text-align:center;padding:6px"></div>
+            <div><div style="font-size:10px;color:#64748b;margin-bottom:4px">ラベル</div>
+              <input type="text" id="cl" placeholder="投薬確認" style="width:100px;padding:6px"></div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">📋 本日の完了履歴</div>
+        <div id="timer-hist"></div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /app -->
+
+<!-- ============================= MODALS ============================= -->
+
+<!-- 設定モーダル -->
+<div id="settings-modal" class="modal-overlay" style="display:none" onclick="closeOuter(event,'settings-modal')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h2>⚙️ 設定</h2>
+
+    <!-- Firebase -->
+    <div style="margin-bottom:18px">
+      <h3 style="font-size:13px;font-weight:700;color:#a5b4fc;margin-bottom:8px">🔥 Firebase クロスデバイス同期</h3>
+      <p style="font-size:12px;color:#64748b;margin-bottom:10px;line-height:1.6">
+        FirebaseプロジェクトのConfig JSONと同期コードを設定すると、スマホ・デスクトップ間でリアルタイム同期できます。<br>
+        <a href="https://console.firebase.google.com" target="_blank" style="color:#6366f1">console.firebase.google.com</a> で無料プロジェクトを作成 → Firestore を有効化
+      </p>
+      <div style="margin-bottom:8px">
+        <label class="form-label">Firebase Config (JSONをそのまま貼り付け)</label>
+        <textarea id="fb-cfg" rows="5" style="width:100%;font-size:11px;font-family:monospace;resize:vertical"
+          placeholder='{"apiKey":"AIza...","authDomain":"xxx.firebaseapp.com","projectId":"xxx","storageBucket":"xxx.appspot.com","messagingSenderId":"000","appId":"1:000:web:abc"}'></textarea>
+      </div>
+      <div style="margin-bottom:10px">
+        <label class="form-label">同期コード（全デバイスで同じコードを使う）</label>
+        <div style="display:flex;gap:6px">
+          <input type="text" id="fb-code" placeholder="例: ao-icu-habit-2026" style="flex:1">
+          <button class="btn-ghost" onclick="genCode()">自動生成</button>
+        </div>
+        <div style="font-size:11px;color:#64748b;margin-top:4px">※ このコードを知る人は全員データを読み書きできます</div>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <button class="btn-primary" style="flex:1" onclick="saveFirebase()">接続する</button>
+        <button class="btn-danger" onclick="disconnectFirebase()">切断</button>
+      </div>
+      <div id="fb-msg" style="font-size:12px;color:#94a3b8;min-height:18px"></div>
+    </div>
+    <hr>
+    <!-- PWA 説明 -->
+    <div style="margin-bottom:18px">
+      <h3 style="font-size:13px;font-weight:700;color:#a5b4fc;margin-bottom:8px">📱 アプリとしてインストール</h3>
+      <div style="font-size:12px;color:#94a3b8;line-height:1.9">
+        <b style="color:#f1f5f9">iPhone/iPad（Safari）:</b><br>
+        　共有 → 「ホーム画面に追加」<br>
+        <b style="color:#f1f5f9">Android（Chrome）:</b><br>
+        　メニュー → 「ホーム画面に追加」<br>
+        <b style="color:#f1f5f9">Mac/PC（Chrome）:</b><br>
+        　アドレスバー右のインストールアイコンをクリック<br>
+        <span style="color:#fde68a">⚠ PWA/アイコン機能はHTTPS配信時のみ有効</span><br>
+        　Firebase Hostingで公開すると完全対応:<br>
+        　<code>firebase deploy</code>
+      </div>
+    </div>
+    <hr>
+    <!-- Data -->
+    <div>
+      <h3 style="font-size:13px;font-weight:700;color:#a5b4fc;margin-bottom:8px">💾 データ管理</h3>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn-ghost" onclick="exportData()">📤 エクスポート</button>
+        <button class="btn-ghost" onclick="document.getElementById('import-in').click()">📥 インポート</button>
+        <button class="btn-danger" onclick="clearAll()">🗑 全データ削除</button>
+      </div>
+      <input type="file" id="import-in" accept=".json" style="display:none" onchange="importData(event)">
+    </div>
+    <button class="btn-ghost" style="width:100%;margin-top:16px" onclick="closeModal('settings-modal')">閉じる</button>
+  </div>
+</div>
+
+<!-- カレンダーURLモーダル -->
+<div id="calendar-modal" class="modal-overlay" style="display:none" onclick="closeOuter(event,'calendar-modal')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h2>📅 Googleカレンダー設定</h2>
+    <p style="font-size:12px;color:#64748b;margin-bottom:12px;line-height:1.6">
+      Google Calendar → 設定アイコン → 設定 → カレンダーを選択 →「このカレンダーを統合する」→「公開URL」を貼り付け
+    </p>
+    <div id="cal-url-list" style="margin-bottom:10px"></div>
+    <div style="display:flex;gap:8px;margin-bottom:8px">
+      <input type="text" id="cal-url-in" placeholder="https://calendar.google.com/calendar/embed?src=..." style="flex:1">
+      <button class="btn-primary" onclick="addCalUrl()">追加</button>
+    </div>
+    <button class="btn-ghost" style="width:100%;margin-top:8px" onclick="closeModal('calendar-modal')">完了</button>
+  </div>
+</div>
+
+<!-- 習慣追加モーダル -->
+<div id="add-habit-modal" class="modal-overlay" style="display:none" onclick="closeOuter(event,'add-habit-modal')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h2>➕ 習慣を追加</h2>
+    <div style="margin-bottom:10px">
+      <label class="form-label">習慣名</label>
+      <input type="text" id="h-name" placeholder="朝ランニング" style="width:100%">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">カテゴリ</label>
+        <select id="h-cat" style="width:100%">
+          <option value="health">🏃 健康・運動</option>
+          <option value="study">📚 仕事・勉強</option>
+          <option value="icu">💊 ICU薬剤師</option>
+          <option value="custom">✨ カスタム</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">アイコン(絵文字)</label>
+        <input type="text" id="h-icon" placeholder="🏃" maxlength="2" style="width:100%;text-align:center;font-size:20px">
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button class="btn-primary" style="flex:1" onclick="addHabit()">追加</button>
+      <button class="btn-ghost" onclick="closeModal('add-habit-modal')">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+<!-- 案件追加モーダル -->
+<div id="add-proj-modal" class="modal-overlay" style="display:none" onclick="closeOuter(event,'add-proj-modal')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h2>📁 案件を追加</h2>
+    <div style="margin-bottom:8px">
+      <label class="form-label">案件名</label>
+      <input type="text" id="pj-name" placeholder="薬局コンサル" style="width:100%">
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">金額(円)</label><input type="number" id="pj-amt" placeholder="50000" style="width:100%"></div>
+      <div class="form-group"><label class="form-label">時間(h)</label><input type="number" id="pj-hrs" placeholder="10" step="0.5" style="width:100%"></div>
+    </div>
+    <div style="margin-bottom:8px">
+      <label class="form-label">ステータス</label>
+      <select id="pj-sta" style="width:100%">
+        <option value="active">🔵 進行中</option>
+        <option value="done">🟢 完了</option>
+        <option value="pending">🟡 保留</option>
+      </select>
+    </div>
+    <div style="margin-bottom:12px">
+      <label class="form-label">メモ</label>
+      <textarea id="pj-memo" rows="2" style="width:100%;resize:none"></textarea>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn-primary" style="flex:1" onclick="addProj()">追加</button>
+      <button class="btn-ghost" onclick="closeModal('add-proj-modal')">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+<!-- 目標追加モーダル -->
+<div id="add-goal-modal" class="modal-overlay" style="display:none" onclick="closeOuter(event,'add-goal-modal')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h2>🎯 目標を追加</h2>
+    <div style="margin-bottom:8px">
+      <label class="form-label">目標内容</label>
+      <input type="text" id="g-text" placeholder="論文を1本読む" style="width:100%">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">期間</label>
+        <select id="g-scope" style="width:100%">
+          <option value="today">今日</option>
+          <option value="month">今月</option>
+          <option value="quarter">3ヶ月</option>
+          <option value="year">年間</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">優先度</label>
+        <select id="g-prio" style="width:100%">
+          <option value="high">🔴 高</option>
+          <option value="med">🟡 中</option>
+          <option value="low">🔵 低</option>
+        </select>
+      </div>
+    </div>
+    <div style="margin-bottom:12px">
+      <label class="form-label">メモ</label>
+      <textarea id="g-memo" rows="2" style="width:100%;resize:none"></textarea>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn-primary" style="flex:1" onclick="addGoal()">追加</button>
+      <button class="btn-ghost" onclick="closeModal('add-goal-modal')">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================= SCRIPT ============================= -->
+<script>
+// ======================== CONSTANTS ========================
+const SK = 'habitTrackerV4';
+const TK = 'timerSettings';
+const CIRC = 2 * Math.PI * 84; // SVG r=84
+const CAT = {
+  health:{label:'🏃 健康・運動',color:'#10b981'},
+  study: {label:'📚 仕事・勉強',color:'#6366f1'},
+  icu:   {label:'💊 ICU薬剤師', color:'#f59e0b'},
+  custom:{label:'✨ カスタム',   color:'#ec4899'},
+};
+const CHART_COLORS = ['#6366f1','#8b5cf6','#ec4899','#f59e0b','#10b981','#06b6d4','#f97316','#84cc16'];
+const DEFAULTS = [
+  {id:'h1',name:'朝ランニング',cat:'health',icon:'🏃'},
+  {id:'h2',name:'薬剤師勉強(30分)',cat:'study',icon:'📚'},
+  {id:'h3',name:'ICU薬歴確認',cat:'icu',icon:'💊'},
+  {id:'h4',name:'水分2L摂取',cat:'health',icon:'💧'},
+  {id:'h5',name:'TDMチェック',cat:'icu',icon:'🔬'},
+];
+
+// ======================== STATE ========================
+let S = {
+  habits:[],
+  checkins:{},
+  calUrls:[],
+  income:{},
+  projects:[],
+  goals:[],
+  lastUpdated:0,
+};
+let TS = {pw:25,ps:5,pl:15};
+let FB = {config:null, code:''};
+
+// UI state
+let calOffset=0, incOffset=0, goalScope='today', statRange=7, gcalView='month';
+let barChart=null, donutChart=null, incChart=null;
+let db=null, fbUnsub=null;
+
+// Timer state
+let pomoTimer=null, pomoRunning=false, pomoSec=0, pomoPhase='work', pomoCount=0;
+let custTimer=null, custRunning=false, custSec=0, custTotal=0;
+
+// ======================== HELPERS ========================
+const today = () => new Date().toISOString().slice(0,10);
+const ymKey = (offset=0) => {
+  const d=new Date(); d.setMonth(d.getMonth()+offset);
+  return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}`;
+};
+const fmtYen = v => '¥'+(v||0).toLocaleString();
+const pad2 = n => String(n).padStart(2,'0');
+
+// ======================== PERSIST ========================
+function load(){
+  try{ const r=localStorage.getItem(SK); if(r) S={...S,...JSON.parse(r)}; }catch(e){}
+  try{ const r=localStorage.getItem(TK); if(r) TS={...TS,...JSON.parse(r)}; }catch(e){}
+  try{
+    const fc=localStorage.getItem('fbConfig'); const fc2=localStorage.getItem('syncCode');
+    if(fc) FB.config=JSON.parse(fc);
+    if(fc2) FB.code=fc2;
+  }catch(e){}
+  if(!S.habits||S.habits.length===0) S.habits=DEFAULTS.map(h=>({...h,createdAt:0}));
+}
+
+function save(){
+  S.lastUpdated=Date.now();
+  localStorage.setItem(SK,JSON.stringify(S));
+  if(db&&FB.code){
+    db.collection('habitData').doc(FB.code).set(S,{merge:false})
+      .catch(e=>console.warn('Firestore write error',e));
+  }
+}
+
+function saveTK(){ localStorage.setItem(TK,JSON.stringify(TS)); }
+
+// ======================== FIREBASE ========================
+function initFirebase(){
+  if(!FB.config||!FB.code) return;
+  try{
+    if(firebase.apps.length) firebase.app().delete().then(startFB).catch(startFB);
+    else startFB();
+  }catch(e){ setBadge(false,'error'); }
+}
+
+function startFB(){
+  try{
+    firebase.initializeApp(FB.config);
+    db=firebase.firestore();
+    if(fbUnsub) fbUnsub();
+    fbUnsub=db.collection('habitData').doc(FB.code).onSnapshot(doc=>{
+      if(doc.exists){
+        const remote=doc.data();
+        if(remote.lastUpdated>S.lastUpdated){
+          S={...S,...remote};
+          localStorage.setItem(SK,JSON.stringify(S));
+          renderAll();
+          showSyncBar();
+        }
+      }
+      setBadge(true,'ok');
+    },err=>{ console.warn('Firestore error',err); setBadge(false,'error'); });
+    setBadge(true,'ok');
+  }catch(e){ console.warn('Firebase start error',e); setBadge(false,'error'); }
+}
+
+function setBadge(connected, state){
+  const el=document.getElementById('sync-badge');
+  if(!FB.code||!FB.config){ el.className='sync-badge sync-off'; el.textContent='オフライン'; return; }
+  if(connected&&state==='ok'){ el.className='sync-badge sync-ok'; el.textContent='🔄 同期中'; }
+  else{ el.className='sync-badge sync-error'; el.textContent='⚠ 接続エラー'; }
+}
+
+function showSyncBar(){
+  const b=document.getElementById('sync-bar');
+  b.style.display='block'; b.style.opacity='1';
+  setTimeout(()=>{ b.style.opacity='0'; setTimeout(()=>b.style.display='none',300); },2500);
+}
+
+function saveFirebase(){
+  const cfg=document.getElementById('fb-cfg').value.trim();
+  const code=document.getElementById('fb-code').value.trim();
+  const msg=document.getElementById('fb-msg');
+  if(!cfg||!code){ msg.textContent='⚠ ConfigとSync Codeを両方入力してください'; return; }
+  try{
+    FB.config=JSON.parse(cfg); FB.code=code;
+    localStorage.setItem('fbConfig',cfg);
+    localStorage.setItem('syncCode',code);
+    msg.textContent='✅ 設定を保存しました。接続中...';
+    initFirebase();
+  }catch(e){ msg.textContent='❌ JSON形式が正しくありません: '+e.message; }
+}
+
+function disconnectFirebase(){
+  if(!confirm('Firebase同期を切断しますか？')) return;
+  if(fbUnsub) fbUnsub();
+  db=null; FB={config:null,code:''};
+  localStorage.removeItem('fbConfig'); localStorage.removeItem('syncCode');
+  setBadge(false,'off');
+  document.getElementById('fb-msg').textContent='切断しました';
+}
+
+function genCode(){
+  const w=['icu','pharma','ao','habit','tracker'];
+  document.getElementById('fb-code').value=w[Math.floor(Math.random()*w.length)]+'-'+Math.random().toString(36).slice(2,8);
+}
+
+function prefillFB(){
+  if(FB.config) document.getElementById('fb-cfg').value=JSON.stringify(FB.config,null,2);
+  if(FB.code) document.getElementById('fb-code').value=FB.code;
+}
+
+// ======================== TABS ========================
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.tab-pane').forEach(p=>p.style.display='none');
+    btn.classList.add('active');
+    const tab=btn.dataset.tab;
+    document.getElementById('tab-'+tab).style.display='block';
+    onTab(tab);
+  });
+});
+
+function onTab(tab){
+  if(tab==='calendar') renderCal();
+  if(tab==='stats') renderStats();
+  if(tab==='streak') renderStreak();
+  if(tab==='income') renderInc();
+  if(tab==='goals') renderGoals();
+  if(tab==='timer') renderTimerHist();
+}
+
+// ======================== MODAL ========================
+function openModal(id){
+  if(id==='settings-modal') prefillFB();
+  if(id==='calendar-modal') renderCalUrlList();
+  document.getElementById(id).style.display='flex';
+}
+function closeModal(id){ document.getElementById(id).style.display='none'; }
+function closeOuter(e,id){ if(e.target.id===id) closeModal(id); }
+
+// ======================== HABITS ========================
+function todayDone(){ return S.checkins[today()]||[]; }
+
+function toggleHabit(id){
+  if(!S.checkins[today()]) S.checkins[today()]=[];
+  const i=S.checkins[today()].indexOf(id);
+  if(i>=0) S.checkins[today()].splice(i,1);
+  else S.checkins[today()].push(id);
+  save(); renderToday();
+}
+
+function addHabit(){
+  const name=document.getElementById('h-name').value.trim();
+  if(!name) return;
+  const icon=document.getElementById('h-icon').value.trim()||'⭐';
+  S.habits.push({id:'h'+Date.now(),name,cat:document.getElementById('h-cat').value,icon,createdAt:Date.now()});
+  save(); renderToday(); closeModal('add-habit-modal');
+  document.getElementById('h-name').value='';
+  document.getElementById('h-icon').value='';
+}
+
+function deleteHabit(id){
+  if(!confirm('この習慣を削除しますか？')) return;
+  S.habits=S.habits.filter(h=>h.id!==id);
+  Object.keys(S.checkins).forEach(d=>{ S.checkins[d]=(S.checkins[d]||[]).filter(i=>i!==id); });
+  save(); renderToday();
+}
+
+function getStreak(id){
+  let n=0;
+  const d=new Date();
+  const todayDone=(S.checkins[today()]||[]).includes(id);
+  if(todayDone){ n=1; d.setDate(d.getDate()-1); }
+  while(true){
+    const ds=d.toISOString().slice(0,10);
+    if((S.checkins[ds]||[]).includes(id)){ n++; d.setDate(d.getDate()-1); }
+    else break;
+  }
+  return n;
+}
+
+function getMaxStreak(id){
+  const dates=Object.keys(S.checkins).filter(d=>(S.checkins[d]||[]).includes(id)).sort();
+  let max=0,cur=0,prev=null;
+  dates.forEach(d=>{
+    if(prev){
+      const diff=(new Date(d)-new Date(prev))/86400000;
+      cur=diff===1?cur+1:1;
+    } else cur=1;
+    max=Math.max(max,cur); prev=d;
+  });
+  return max;
+}
+
+function renderToday(){
+  const done=todayDone();
+  const total=S.habits.length;
+  const n=done.length;
+  const rate=total?Math.round(n/total*100):0;
+  document.getElementById('t-done').textContent=n;
+  document.getElementById('t-rate').textContent=rate+'%';
+  const ms=S.habits.reduce((m,h)=>Math.max(m,getStreak(h.id)),0);
+  document.getElementById('t-streak').textContent=ms+'🔥';
+  document.getElementById('t-bar').style.width=rate+'%';
+
+  const bycat={};
+  S.habits.forEach(h=>{ if(!bycat[h.cat]) bycat[h.cat]=[]; bycat[h.cat].push(h); });
+  const container=document.getElementById('habits-container');
+  if(!S.habits.length){
+    container.innerHTML='<div class="empty"><div class="empty-icon">📋</div><div>習慣を追加しましょう</div></div>';
+    return;
+  }
+  container.innerHTML=Object.entries(bycat).map(([cat,habits])=>`
+    <div class="cat-header">${CAT[cat]?.label||cat}</div>
+    <div class="card" style="padding:6px 10px;margin-bottom:10px">
+    ${habits.map(h=>{
+      const checked=done.includes(h.id);
+      const streak=getStreak(h.id);
+      return `<div class="habit-item" onclick="toggleHabit('${h.id}')">
+        <div class="habit-check${checked?' checked':''}">✓</div>
+        <span style="font-size:19px;flex-shrink:0">${h.icon}</span>
+        <div class="habit-label${checked?' done':''}">${h.name}</div>
+        ${streak>1?`<span class="habit-streak">🔥${streak}</span>`:''}
+        <button class="btn-icon" onclick="event.stopPropagation();deleteHabit('${h.id}')" title="削除">✕</button>
+      </div>`;
+    }).join('')}
+    </div>`).join('');
+}
+
+// ======================== GOOGLE CALENDAR ========================
+function switchCalView(view,btn){
+  gcalView=view;
+  document.querySelectorAll('#gcal-toggle .tg-btn').forEach(b=>b.classList.toggle('active',b.dataset.view===view));
+  renderGCal();
+}
+
+function buildGCalSrc(srcStr, extra){
+  const mode=gcalView==='week'?'WEEK':'MONTH';
+  const h=gcalView==='week'?1440:480;
+  const encodedSrc=encodeURIComponent(srcStr);
+  const extraStr=(extra||[]).map(s=>'&src='+encodeURIComponent(s)).join('');
+  return {
+    url:`https://calendar.google.com/calendar/embed?src=${encodedSrc}${extraStr}&ctz=Asia%2FTokyo&mode=${mode}&showTitle=0&showNav=1&showPrint=0&showTabs=0&showCalendars=0&hl=ja&wkst=1`,
+    height:h
+  };
+}
+
+function extractSrc(url){
+  try{ return new URL(url).searchParams.get('src')||''; }
+  catch(e){ return ''; }
+}
+
+function renderGCal(){
+  const wrap=document.getElementById('gcal-wrap');
+  if(!S.calUrls||S.calUrls.length===0){
+    wrap.innerHTML=`<div style="padding:28px;text-align:center;color:#64748b">
+      <div style="font-size:32px;margin-bottom:8px">📅</div>
+      <div style="font-size:13px;margin-bottom:10px">Googleカレンダーを追加してください</div>
+      <button class="btn-primary" onclick="openModal('calendar-modal')">URLを追加</button>
+    </div>`;
+    return;
+  }
+  const srcs=S.calUrls.map(u=>extractSrc(u)).filter(Boolean);
+  const h=gcalView==='week'?1440:480;
+  const mode=gcalView==='week'?'WEEK':'MONTH';
+  let iframeSrc='';
+  if(srcs.length){
+    const main=srcs[0];
+    const extra=srcs.slice(1).map(s=>'&src='+encodeURIComponent(s)).join('');
+    iframeSrc=`https://calendar.google.com/calendar/embed?src=${encodeURIComponent(main)}${extra}&ctz=Asia%2FTokyo&mode=${mode}&showTitle=0&showNav=1&showPrint=0&showTabs=0&showCalendars=0&hl=ja&wkst=1`;
+  } else {
+    // Use URL as-is, override mode
+    try{
+      const u=new URL(S.calUrls[0]);
+      u.searchParams.set('mode',mode);
+      u.searchParams.set('showTitle','0'); u.searchParams.set('hl','ja');
+      iframeSrc=u.toString();
+    }catch(e){ iframeSrc=S.calUrls[0]; }
+  }
+  const note=gcalView==='week'?'<div style="font-size:10px;color:#64748b;text-align:center;padding:4px">↕ スクロールで0〜24時すべて表示</div>':'';
+  wrap.innerHTML=`
+    ${note}
+    <div class="gcal-wrap" style="height:${Math.min(h,600)}px;overflow-y:${gcalView==='week'?'scroll':'hidden'}">
+      <iframe src="${iframeSrc}" class="gcal-iframe" style="height:${h}px" loading="lazy"></iframe>
+    </div>`;
+}
+
+function addCalUrl(){
+  const url=document.getElementById('cal-url-in').value.trim();
+  if(!url) return;
+  if(!S.calUrls) S.calUrls=[];
+  if(S.calUrls.length>=8){ alert('最大8件まで追加できます'); return; }
+  S.calUrls.push(url);
+  save(); renderCalUrlList(); renderGCal();
+  document.getElementById('cal-url-in').value='';
+}
+
+function removeCalUrl(i){
+  S.calUrls.splice(i,1); save(); renderCalUrlList(); renderGCal();
+}
+
+function renderCalUrlList(){
+  const el=document.getElementById('cal-url-list');
+  if(!S.calUrls||!S.calUrls.length){
+    el.innerHTML='<div style="color:#64748b;font-size:12px;margin-bottom:8px">登録済みURLなし</div>';
+    return;
+  }
+  el.innerHTML=S.calUrls.map((u,i)=>`
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;background:#0f172a;padding:8px 10px;border-radius:8px;border:1px solid #334155">
+      <div style="flex:1;font-size:11px;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${u}</div>
+      <button class="btn-danger" style="padding:3px 8px" onclick="removeCalUrl(${i})">✕</button>
+    </div>`).join('');
+}
+
+// ======================== CALENDAR TAB ========================
+function renderCal(){
+  const d=new Date(); d.setMonth(d.getMonth()+calOffset);
+  const y=d.getFullYear(), m=d.getMonth();
+  document.getElementById('cal-label').textContent=`${y}年${m+1}月`;
+  const firstDay=new Date(y,m,1).getDay();
+  const lastDay=new Date(y,m+1,0).getDate();
+  const todayStr=today();
+  let html='';
+  for(let i=0;i<firstDay;i++) html+='<div></div>';
+  for(let dd=1;dd<=lastDay;dd++){
+    const ds=`${y}-${pad2(m+1)}-${pad2(dd)}`;
+    const ci=S.checkins[ds]||[];
+    const total=S.habits.length;
+    const rate=total?ci.length/total:0;
+    const isTd=ds===todayStr, isFuture=ds>todayStr;
+    let bg='#0f172a';
+    if(!isFuture&&total>0){
+      if(rate>=0.8) bg='#134e4a';
+      else if(rate>=0.5) bg='#1e3a5f';
+      else if(rate>0) bg='#3b1f2b';
+      else if(!isFuture) bg='#1c1017';
+    }
+    html+=`<div class="cal-day" style="background:${bg};${isTd?'outline:2px solid #6366f1;outline-offset:-2px':''}" title="${ds}: ${ci.length}/${total}">
+      <span style="font-size:10px;color:${isFuture?'#2d3f55':isTd?'#a5b4fc':'#94a3b8'}">${dd}</span>
+    </div>`;
+  }
+  document.getElementById('cal-grid').innerHTML=html;
+
+  // Summary
+  const pastDates=[];
+  for(let dd=1;dd<=lastDay;dd++){
+    const ds=`${y}-${pad2(m+1)}-${pad2(dd)}`;
+    if(ds<=todayStr) pastDates.push(ds);
+  }
+  const perfect=pastDates.filter(ds=>{
+    const ci=S.checkins[ds]||[];
+    return S.habits.length&&ci.length===S.habits.length;
+  }).length;
+  const avg=pastDates.length?Math.round(pastDates.reduce((s,ds)=>{
+    const ci=S.checkins[ds]||[];
+    return s+(S.habits.length?ci.length/S.habits.length:0);
+  },0)/pastDates.length*100):0;
+  document.getElementById('cal-summary').innerHTML=`
+    <div class="stat-card"><div class="stat-value">${pastDates.length}</div><div class="stat-label">経過日数</div></div>
+    <div class="stat-card"><div class="stat-value">${perfect}🌟</div><div class="stat-label">完璧な日</div></div>
+    <div class="stat-card"><div class="stat-value">${avg}%</div><div class="stat-label">平均達成率</div></div>`;
+}
+
+function calMove(dir){ calOffset+=dir; renderCal(); }
+
+// ======================== STATS ========================
+function setStatRange(n,btn){
+  statRange=n;
+  btn.closest('.tg').querySelectorAll('.tg-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderStats();
+}
+
+function renderStats(){
+  const dates=[];
+  for(let i=statRange-1;i>=0;i--){
+    const d=new Date(); d.setDate(d.getDate()-i);
+    dates.push(d.toISOString().slice(0,10));
+  }
+  const rates=dates.map(d=>{
+    const ci=S.checkins[d]||[];
+    return S.habits.length?Math.round(ci.length/S.habits.length*100):0;
+  });
+  const labels=dates.map(d=>d.slice(5).replace('-','/'));
+
+  if(barChart) barChart.destroy();
+  barChart=new Chart(document.getElementById('bar-chart'),{
+    type:'bar',
+    data:{labels,datasets:[{
+      label:'達成率(%)',data:rates,
+      backgroundColor:rates.map(r=>r>=80?'#6366f1':r>=50?'#8b5cf6':'#334155'),
+      borderRadius:4,
+    }]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        y:{min:0,max:100,grid:{color:'#334155'},ticks:{color:'#64748b',font:{size:10}}},
+        x:{grid:{display:false},ticks:{color:'#64748b',maxRotation:45,font:{size:10}}}
+      }
+    }
+  });
+
+  if(donutChart) donutChart.destroy();
+  if(!S.habits.length) return;
+  const hRates=S.habits.map(h=>{
+    const n=dates.filter(d=>(S.checkins[d]||[]).includes(h.id)).length;
+    return Math.round(n/dates.length*100);
+  });
+  donutChart=new Chart(document.getElementById('donut-chart'),{
+    type:'doughnut',
+    data:{
+      labels:S.habits.map(h=>h.name),
+      datasets:[{data:hRates,backgroundColor:CHART_COLORS.slice(0,S.habits.length),borderWidth:0}]
+    },
+    options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{display:false}}}
+  });
+  document.getElementById('donut-legend').innerHTML=S.habits.map((h,i)=>`
+    <div style="display:flex;align-items:center;gap:4px;font-size:11px;color:#94a3b8">
+      <div style="width:9px;height:9px;border-radius:2px;background:${CHART_COLORS[i]};flex-shrink:0"></div>
+      <span>${h.icon} ${h.name}: ${hRates[i]}%</span>
+    </div>`).join('');
+}
+
+// ======================== STREAK ========================
+function renderStreak(){
+  const last7=[];
+  for(let i=6;i>=0;i--){ const d=new Date(); d.setDate(d.getDate()-i); last7.push(d.toISOString().slice(0,10)); }
+  const sorted=[...S.habits].map(h=>({...h,streak:getStreak(h.id),max:getMaxStreak(h.id)}))
+    .sort((a,b)=>b.streak-a.streak||b.max-a.max);
+  if(!sorted.length){
+    document.getElementById('streak-list').innerHTML='<div class="empty"><div class="empty-icon">🔥</div><div>習慣を追加してください</div></div>';
+    return;
+  }
+  document.getElementById('streak-list').innerHTML=sorted.map((h,i)=>`
+    <div class="card" style="padding:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <div style="font-size:22px;font-weight:800;color:${h.streak>0?'#f59e0b':'#475569'};min-width:28px">${i+1}</div>
+        <div style="font-size:18px">${h.icon}</div>
+        <div style="flex:1">
+          <div style="font-weight:600;font-size:14px">${h.name}</div>
+          <div style="font-size:10px;color:#64748b">${CAT[h.cat]?.label}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:20px;font-weight:700;color:#f59e0b">🔥${h.streak}</div>
+          <div style="font-size:10px;color:#64748b">最長${h.max}日</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:4px;align-items:center;justify-content:flex-end">
+        <span style="font-size:10px;color:#475569;margin-right:4px">直近7日</span>
+        ${last7.map(d=>{
+          const done=(S.checkins[d]||[]).includes(h.id);
+          const isTd=d===today();
+          return `<div style="width:12px;height:12px;border-radius:50%;flex-shrink:0;background:${done?'#6366f1':'#1e293b'};border:1px solid ${done?'#6366f1':'#334155'};${isTd?'outline:2px solid #a5b4fc;outline-offset:1px':''}"></div>`;
+        }).join('')}
+      </div>
+    </div>`).join('');
+}
+
+// ======================== INCOME ========================
+function renderInc(){
+  const ym=ymKey(incOffset);
+  const d=new Date(); d.setMonth(d.getMonth()+incOffset);
+  document.getElementById('inc-label').textContent=`${d.getFullYear()}年${d.getMonth()+1}月`;
+  const data=(S.income||{})[ym]||{target:0,actual:0,hours:0,memo:''};
+  document.getElementById('inc-target').textContent=fmtYen(data.target);
+  document.getElementById('inc-actual').textContent=fmtYen(data.actual);
+  document.getElementById('inc-hours').textContent=(data.hours||0)+'h';
+  const rate=data.target?Math.min(Math.round(data.actual/data.target*100),100):0;
+  document.getElementById('inc-bar').style.width=rate+'%';
+  document.getElementById('inc-rate').textContent=rate+'%';
+  document.getElementById('inc-t-in').value=data.target||'';
+  document.getElementById('inc-a-in').value=data.actual||'';
+  document.getElementById('inc-h-in').value=data.hours||'';
+  document.getElementById('inc-memo').value=data.memo||'';
+  renderProjs(); renderIncChart();
+}
+
+function saveInc(){
+  const ym=ymKey(incOffset);
+  if(!S.income) S.income={};
+  S.income[ym]={
+    target:parseFloat(document.getElementById('inc-t-in').value)||0,
+    actual:parseFloat(document.getElementById('inc-a-in').value)||0,
+    hours:parseFloat(document.getElementById('inc-h-in').value)||0,
+    memo:document.getElementById('inc-memo').value,
+  };
+  save(); renderInc();
+}
+
+function incMove(dir){ incOffset+=dir; renderInc(); }
+
+function addProj(){
+  const name=document.getElementById('pj-name').value.trim();
+  if(!name) return;
+  if(!S.projects) S.projects=[];
+  S.projects.push({
+    id:'p'+Date.now(),name,
+    amount:parseFloat(document.getElementById('pj-amt').value)||0,
+    hours:parseFloat(document.getElementById('pj-hrs').value)||0,
+    status:document.getElementById('pj-sta').value,
+    memo:document.getElementById('pj-memo').value,
+    month:ymKey(incOffset),createdAt:Date.now()
+  });
+  save(); renderProjs(); closeModal('add-proj-modal');
+  ['pj-name','pj-amt','pj-hrs','pj-memo'].forEach(id=>document.getElementById(id).value='');
+}
+
+function deleteProj(id){ if(!confirm('削除しますか？')) return; S.projects=S.projects.filter(p=>p.id!==id); save(); renderProjs(); }
+
+function cycleStatus(id){
+  const p=(S.projects||[]).find(p=>p.id===id);
+  if(!p) return;
+  const st=['active','done','pending'];
+  p.status=st[(st.indexOf(p.status)+1)%st.length];
+  save(); renderProjs();
+}
+
+const SBADGE={active:'<span class="badge badge-blue">進行中</span>',done:'<span class="badge badge-green">完了</span>',pending:'<span class="badge badge-yellow">保留</span>'};
+
+function renderProjs(){
+  const ym=ymKey(incOffset);
+  const list=(S.projects||[]).filter(p=>p.month===ym);
+  const el=document.getElementById('proj-list');
+  if(!list.length){ el.innerHTML='<div style="color:#475569;font-size:13px;text-align:center;padding:14px">案件なし</div>'; return; }
+  el.innerHTML=list.map(p=>`
+    <div class="proj-item">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+        <div style="flex:1;font-weight:600;font-size:14px">${p.name}</div>
+        <button style="background:none;border:none;cursor:pointer;padding:2px" onclick="cycleStatus('${p.id}')">${SBADGE[p.status]||SBADGE.active}</button>
+        <button class="btn-danger" style="padding:3px 7px" onclick="deleteProj('${p.id}')">✕</button>
+      </div>
+      <div style="display:flex;gap:10px;font-size:12px;color:#94a3b8">
+        <span>${fmtYen(p.amount)}</span>
+        <span>${p.hours}h</span>
+        ${p.hours?`<span>${Math.round(p.amount/p.hours).toLocaleString()}円/h</span>`:''}
+      </div>
+      ${p.memo?`<div style="font-size:11px;color:#64748b;margin-top:4px">${p.memo}</div>`:''}
+    </div>`).join('');
+}
+
+function renderIncChart(){
+  const months=[];
+  for(let i=5;i>=0;i--){ months.push(ymKey(incOffset-i)); }
+  const tgts=months.map(m=>(S.income||{})[m]?.target||0);
+  const acts=months.map(m=>(S.income||{})[m]?.actual||0);
+  const labels=months.map(m=>m.slice(5)+'月');
+  if(incChart) incChart.destroy();
+  incChart=new Chart(document.getElementById('inc-chart'),{
+    type:'bar',
+    data:{labels,datasets:[
+      {label:'目標',data:tgts,backgroundColor:'#334155',borderRadius:4},
+      {label:'実績',data:acts,backgroundColor:'#6366f1',borderRadius:4},
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#94a3b8',font:{size:11}}}},
+      scales:{
+        y:{grid:{color:'#334155'},ticks:{color:'#64748b',font:{size:10}}},
+        x:{grid:{display:false},ticks:{color:'#64748b',font:{size:10}}}
+      }
+    }
+  });
+}
+
+// ======================== GOALS ========================
+function setGoalScope(scope,btn){
+  goalScope=scope;
+  btn.closest('.tg').querySelectorAll('.tg-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderGoals();
+}
+
+function addGoal(){
+  const text=document.getElementById('g-text').value.trim();
+  if(!text) return;
+  if(!S.goals) S.goals=[];
+  S.goals.push({
+    id:'g'+Date.now(),text,
+    scope:document.getElementById('g-scope').value,
+    priority:document.getElementById('g-prio').value,
+    memo:document.getElementById('g-memo').value,
+    done:false,createdAt:Date.now()
+  });
+  save(); renderGoals(); closeModal('add-goal-modal');
+  document.getElementById('g-text').value='';
+  document.getElementById('g-memo').value='';
+}
+
+function toggleGoal(id){
+  const g=(S.goals||[]).find(g=>g.id===id);
+  if(g){ g.done=!g.done; save(); renderGoals(); }
+}
+
+function deleteGoal(id){ if(!confirm('削除しますか？')) return; S.goals=S.goals.filter(g=>g.id!==id); save(); renderGoals(); }
+
+function renderGoals(){
+  const list=(S.goals||[]).filter(g=>g.scope===goalScope);
+  const po={high:0,med:1,low:2};
+  const sorted=[...list].sort((a,b)=>(po[a.priority]||1)-(po[b.priority]||1)||(a.done?1:-1)-(b.done?1:-1));
+  const el=document.getElementById('goals-list');
+  if(!sorted.length){ el.innerHTML='<div class="empty"><div class="empty-icon">🎯</div><div>目標を追加しましょう</div></div>'; return; }
+  const PC={high:'#ef4444',med:'#f59e0b',low:'#6366f1'};
+  const PL={high:'高',med:'中',low:'低'};
+  el.innerHTML=sorted.map(g=>`
+    <div class="goal-item p-${g.priority}" style="opacity:${g.done?.5:1}">
+      <div style="display:flex;align-items:flex-start;gap:8px">
+        <input type="checkbox" ${g.done?'checked':''} onchange="toggleGoal('${g.id}')"
+          style="width:16px;height:16px;margin-top:2px;accent-color:#6366f1;cursor:pointer;flex-shrink:0">
+        <div style="flex:1">
+          <div style="font-weight:500;font-size:14px;text-decoration:${g.done?'line-through':'none'};color:${g.done?'#64748b':'#f1f5f9'}">${g.text}</div>
+          ${g.memo?`<div style="font-size:11px;color:#64748b;margin-top:3px">${g.memo}</div>`:''}
+        </div>
+        <span style="font-size:11px;font-weight:700;color:${PC[g.priority]};flex-shrink:0">${PL[g.priority]}</span>
+        <button class="btn-icon" onclick="deleteGoal('${g.id}')">✕</button>
+      </div>
+    </div>`).join('');
+}
+
+// ======================== TIMER ========================
+function setTimerMode(mode,btn){
+  btn.closest('.tg').querySelectorAll('.tg-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('pomo-section').style.display=mode==='pomo'?'block':'none';
+  document.getElementById('custom-section').style.display=mode==='custom'?'block':'none';
+}
+
+// --- Pomodoro ---
+function pomoPhaseTotal(){ return (pomoPhase==='work'?TS.pw:pomoPhase==='short'?TS.ps:TS.pl)*60; }
+
+function pomoReset(){
+  clearInterval(pomoTimer); pomoRunning=false;
+  pomoPhase='work'; pomoSec=pomoPhaseTotal();
+  pomoUpdateDisplay(); document.getElementById('pomo-start-btn').textContent='▶ 開始';
+}
+
+function pomoToggle(){
+  if(pomoRunning){
+    clearInterval(pomoTimer); pomoRunning=false;
+    document.getElementById('pomo-start-btn').textContent='▶ 再開';
+  } else {
+    if(pomoSec<=0) pomoSec=pomoPhaseTotal();
+    pomoRunning=true;
+    document.getElementById('pomo-start-btn').textContent='⏸ 一時停止';
+    pomoTimer=setInterval(()=>{ pomoSec--; pomoUpdateDisplay(); if(pomoSec<=0){ clearInterval(pomoTimer); pomoRunning=false; pomoComplete(); }},1000);
+  }
+}
+
+function pomoSkip(){ clearInterval(pomoTimer); pomoRunning=false; pomoComplete(); }
+
+function pomoComplete(){
+  beep(); notify(pomoPhase==='work'?'🍅 作業完了！休憩しましょう':'☕ 休憩終了！作業を開始します');
+  if(pomoPhase==='work'){
+    pomoCount++;
+    document.getElementById('pomo-count').textContent=pomoCount;
+    saveTimerRec('ポモドーロ作業',TS.pw*60);
+    pomoPhase=pomoCount%4===0?'long':'short';
+  } else { pomoPhase='work'; }
+  pomoSec=pomoPhaseTotal(); pomoUpdateDisplay();
+  document.getElementById('pomo-start-btn').textContent='▶ 開始';
+  renderTimerHist();
+}
+
+function pomoUpdateDisplay(){
+  const m=Math.floor(pomoSec/60), s=pomoSec%60;
+  const disp=`${pad2(m)}:${pad2(s)}`;
+  document.getElementById('pomo-disp').textContent=disp;
+  const pl={work:'作業',short:'短休憩',long:'長休憩'};
+  const ph={work:'🍅 作業セッション',short:'☕ 短休憩',long:'🛋 長休憩'};
+  document.getElementById('pomo-sub').textContent=pl[pomoPhase];
+  document.getElementById('pomo-phase-label').textContent=ph[pomoPhase];
+  document.getElementById('pomo-ring').style.stroke=pomoPhase==='work'?'#6366f1':'#10b981';
+  const total=pomoPhaseTotal();
+  const prog=total>0?(total-pomoSec)/total:0;
+  document.getElementById('pomo-ring').style.strokeDashoffset=CIRC*(1-prog);
+  if(pomoRunning) document.title=`⏱ ${disp} | 習慣`;
+  else document.title='🔬 習慣トラッカー';
+}
+
+function pomoApplySettings(){
+  TS.pw=parseInt(document.getElementById('pw').value)||25;
+  TS.ps=parseInt(document.getElementById('ps').value)||5;
+  TS.pl=parseInt(document.getElementById('pl').value)||15;
+  saveTK();
+  if(!pomoRunning){ pomoSec=pomoPhaseTotal(); pomoUpdateDisplay(); }
+}
+
+// --- Custom ---
+function custReset(){
+  clearInterval(custTimer); custRunning=false;
+  custSec=0; custTotal=0;
+  document.getElementById('cust-disp').textContent='00:00';
+  document.getElementById('cust-ring').style.strokeDashoffset=0;
+  document.getElementById('cust-start-btn').textContent='▶ 開始';
+  document.title='🔬 習慣トラッカー';
+}
+
+function custToggle(){
+  if(custRunning){
+    clearInterval(custTimer); custRunning=false;
+    document.getElementById('cust-start-btn').textContent='▶ 再開';
+  } else {
+    if(custSec<=0){
+      const m=parseInt(document.getElementById('cm').value)||0;
+      const s=parseInt(document.getElementById('cs').value)||0;
+      custTotal=m*60+s; custSec=custTotal;
+    }
+    if(custSec<=0) return;
+    const label=document.getElementById('cl').value;
+    document.getElementById('cust-sub').textContent=label;
+    custRunning=true;
+    document.getElementById('cust-start-btn').textContent='⏸ 一時停止';
+    custTimer=setInterval(()=>{
+      custSec--; custUpdateDisplay();
+      if(custSec<=0){
+        clearInterval(custTimer); custRunning=false;
+        const lbl=document.getElementById('cl').value;
+        beep(); notify(`⏱ タイマー完了${lbl?'：'+lbl:''}`);
+        saveTimerRec(lbl||'カスタム',custTotal);
+        renderTimerHist();
+        document.getElementById('cust-start-btn').textContent='▶ 開始';
+        document.title='🔬 習慣トラッカー';
+      }
+    },1000);
+  }
+}
+
+function custUpdateDisplay(){
+  const m=Math.floor(custSec/60), s=custSec%60;
+  const disp=`${pad2(m)}:${pad2(s)}`;
+  document.getElementById('cust-disp').textContent=disp;
+  const prog=custTotal>0?(custTotal-custSec)/custTotal:0;
+  document.getElementById('cust-ring').style.strokeDashoffset=CIRC*(1-prog);
+  if(custRunning) document.title=`⏱ ${disp} | 習慣`;
+}
+
+// --- Shared ---
+function beep(){
+  try{
+    const ctx=new(window.AudioContext||window.webkitAudioContext)();
+    const o=ctx.createOscillator(), g=ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.type='sine'; o.frequency.value=880;
+    g.gain.setValueAtTime(.3,ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+1.2);
+    o.start(); o.stop(ctx.currentTime+1.2);
+  }catch(e){}
+}
+
+function notify(msg){
+  if('Notification'in window&&Notification.permission==='granted'){
+    new Notification('⏱ 習慣トラッカー',{body:msg});
+  }
+}
+
+function saveTimerRec(label,dur){
+  const key=`timerHistory_${today()}`;
+  const h=JSON.parse(localStorage.getItem(key)||'[]');
+  h.push({label,dur,time:new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})});
+  localStorage.setItem(key,JSON.stringify(h));
+}
+
+function renderTimerHist(){
+  const key=`timerHistory_${today()}`;
+  const h=JSON.parse(localStorage.getItem(key)||'[]');
+  const el=document.getElementById('timer-hist');
+  if(!h.length){ el.innerHTML='<div style="color:#475569;font-size:13px;text-align:center;padding:12px">本日の記録なし</div>'; return; }
+  el.innerHTML=[...h].reverse().map(r=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 4px;border-bottom:1px solid #334155">
+      <div style="flex:1;font-size:13px">${r.label}</div>
+      <div style="font-size:12px;color:#94a3b8">${Math.floor(r.dur/60)}分</div>
+      <div style="font-size:11px;color:#475569">${r.time}</div>
+    </div>`).join('');
+}
+
+// ======================== DATA MANAGEMENT ========================
+function exportData(){
+  const blob=new Blob([JSON.stringify(S,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=`habit-backup-${today()}.json`;
+  a.click(); URL.revokeObjectURL(url);
+}
+
+function importData(e){
+  const file=e.target.files[0]; if(!file) return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    try{
+      const imported=JSON.parse(ev.target.result);
+      if(!confirm('現在のデータを上書きしますか？')) return;
+      S={...S,...imported}; save(); renderAll(); closeModal('settings-modal');
+      alert('✅ インポート完了');
+    }catch(err){ alert('❌ JSONファイルの形式が正しくありません'); }
+  };
+  r.readAsText(file);
+}
+
+function clearAll(){
+  if(!confirm('⚠ 全データを削除しますか？この操作は取り消せません。')) return;
+  localStorage.removeItem(SK); location.reload();
+}
+
+// ======================== PWA SETUP ========================
+function setupPWA(){
+  const svgIcon=`<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512"><rect width="512" height="512" rx="108" fill="%230f172a"/><rect x="76" y="76" width="360" height="360" rx="72" fill="%231e293b"/><text x="256" y="310" font-size="210" text-anchor="middle" dominant-baseline="auto">🔬</text></svg>`;
+  const iconUrl='data:image/svg+xml,'+svgIcon;
+
+  // Apple touch icon
+  const ati=document.getElementById('apple-touch-icon');
+  ati.href=iconUrl; ati.sizes='180x180';
+
+  // Manifest
+  const manifest={
+    name:'ICU薬剤師 習慣トラッカー',short_name:'習慣',
+    description:'ICU薬剤師のための習慣・目標・副業管理アプリ',
+    start_url:'./',display:'standalone',
+    orientation:'portrait-primary',
+    theme_color:'#0f172a',background_color:'#0f172a',lang:'ja',
+    icons:[{src:iconUrl,sizes:'512x512',type:'image/svg+xml',purpose:'any maskable'}]
+  };
+  try{
+    const blob=new Blob([JSON.stringify(manifest)],{type:'application/json'});
+    document.getElementById('manifest-link').href=URL.createObjectURL(blob);
+  }catch(e){}
+
+  // Service Worker (inline blob)
+  if('serviceWorker'in navigator){
+    const sw=`const C='habit-v1';
+self.addEventListener('install',e=>self.skipWaiting());
+self.addEventListener('activate',e=>e.waitUntil(clients.claim()));
+self.addEventListener('fetch',e=>{
+  if(e.request.method!=='GET') return;
+  e.respondWith(fetch(e.request).catch(()=>caches.match(e.request)));
+});`;
+    try{
+      const blob=new Blob([sw],{type:'application/javascript'});
+      navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(()=>{});
+    }catch(e){}
+  }
+
+  // Install prompt
+  window.addEventListener('beforeinstallprompt',e=>{
+    e.preventDefault();
+    const banner=document.getElementById('install-banner');
+    if(banner){
+      banner.style.display='block';
+      banner.innerHTML=`<div style="display:flex;align-items:center;gap:10px">
+        <div style="flex:1;font-size:13px;color:#a5b4fc">📱 このアプリをインストールできます</div>
+        <button class="btn-primary" style="font-size:12px;padding:6px 12px" onclick="(()=>{window._deferredPrompt?.prompt();banner.style.display='none'})()">インストール</button>
+        <button class="btn-icon" onclick="document.getElementById('install-banner').style.display='none'">✕</button>
+      </div>`;
+      window._deferredPrompt=e;
+    }
+  });
+}
+
+// ======================== NOTIFICATIONS ========================
+if('Notification'in window&&Notification.permission==='default'){
+  Notification.requestPermission().catch(()=>{});
+}
+
+// ======================== RENDER ALL ========================
+function renderAll(){
+  renderToday(); renderGCal();
+  const activeTab=document.querySelector('.tab-btn.active')?.dataset.tab;
+  if(activeTab) onTab(activeTab);
+}
+
+// ======================== INIT ========================
+function init(){
+  load();
+  setupPWA();
+
+  // Set timer inputs
+  document.getElementById('pw').value=TS.pw;
+  document.getElementById('ps').value=TS.ps;
+  document.getElementById('pl').value=TS.pl;
+  pomoSec=TS.pw*60; pomoUpdateDisplay();
+
+  renderAll();
+  setBadge(false,'off');
+
+  if(FB.config&&FB.code) initFirebase();
+}
+
+init();
+</script>
+</body>
+</html>
